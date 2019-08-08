@@ -2,37 +2,65 @@ import React, {Component} from 'react';
 // @ts-ignore
 import CytoscapeComponent from 'react-cytoscapejs';
 // @ts-ignore
-import klay from 'cytoscape-klay';
-import cytoscape from "cytoscape";
-import {Paper, Typography} from "@material-ui/core";
+import dagre from 'cytoscape-dagre';
+import cytoscape, {EdgeSingularTraversing} from "cytoscape";
+import {Button, createStyles, Paper, Theme, Typography, withStyles, WithStyles} from "@material-ui/core";
 import ReconnectingWebSocket from "reconnecting-websocket";
+import {defaultLayoutOpts, LayoutOptions, LayoutOptionsData} from "./LayoutOptions";
 
-cytoscape.use(klay);
+cytoscape.use(dagre);
 
-type MainState = {
-    loaded: boolean,
-    wsOpen: boolean
-}
+const styles = (theme: Theme) => createStyles({
+    cytoRoot: {
+        height: '100%'
+    }
+});
 
 const cytoStyles: Array<cytoscape.Stylesheet> = [
     {
         selector: 'edge',
         style: {
-            'curve-style': 'bezier',
+            'curve-style': 'straight',
             'target-arrow-shape': 'triangle'
+        }
+    },
+    {
+        selector: 'node',
+        style: {
+            'label': 'data(slot)'
         }
     }
 ];
 
+type MainState = {
+    loaded: boolean,
+    wsOpen: boolean,
+    layoutOpts: LayoutOptionsData
+}
+
+interface MainProps extends WithStyles<typeof styles> {
+
+}
+
 type CY = cytoscape.Core;
 
-export class Main extends Component<{}, MainState> {
+function getRandomArbitrary(min: number, max: number) {
+    return Math.round(Math.random() * (max - min) + min);
+}
+
+class MainInner extends Component<MainProps, MainState> {
+
+    state: Readonly<MainState> = {
+        loaded: false,
+        wsOpen: false,
+        layoutOpts: defaultLayoutOpts,
+    };
 
     private cy: CY | undefined;
 
     onStatusWS = (open: boolean) => () => {
         this.setState({
-            wsOpen: open
+            wsOpen: open,
         })
     };
 
@@ -56,14 +84,76 @@ export class Main extends Component<{}, MainState> {
         console.log("reset CY instance");
     };
 
-    layout = () => {
+    onLayoutOptions = (data: LayoutOptionsData) => {
+        this.setState({layoutOpts: data}, this.layoutDag);
+    };
+
+    layoutDag = () => {
         if (this.cy) {
-            const layout = this.cy.layout({name: 'klay'});
+            const options = {
+                animate: true,
+                animationDuration: 2000,
+                name: 'dagre',
+                // @ts-ignore
+                ranker: this.state.layoutOpts.ranker,
+                nodeSep: this.state.layoutOpts.nodeSep,
+                edgeSep: this.state.layoutOpts.edgeSep,
+                rankSep: this.state.layoutOpts.rankSep,
+                // @ts-ignore
+                rankDir: 'LR', // TODO: maybe rotate on mobile layout?
+            };
+
+            if (!this.state.layoutOpts.compact) {
+                // @ts-ignore
+                options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
+            }
+            const layout = this.cy.layout(options);
             layout.run();
         }
     };
 
+    mock = () => {
+        const cy = this.cy;
+        if (cy) {
+            cy.batch(() => {
+                const max = 100;
+                const distance = 10;
+
+                cy.add({
+                    group: 'nodes',
+                    data: {
+                        id: `node_0`,
+                        slot: 0
+                    }
+                });
+
+                for (let i = 1; i < max; i++) {
+                    const prev = getRandomArbitrary(Math.max(0, i - distance), i-1);
+                    const prevNode = cy.$id(`node_${prev}`);
+                    const slot = prevNode.data('slot') + getRandomArbitrary(1, 5);
+                    cy.add({
+                        group: 'nodes',
+                        data: {
+                            id: `node_${i}`,
+                            slot: slot
+                        }
+                    });
+                    cy.add({
+                        group: 'edges',
+                        data: {
+                            id: `edge_${prev}_${i}`,
+                            source: `node_${prev}`,
+                            target: `node_${i}`,
+                        }
+                    });
+                }
+            });
+        }
+    };
+
     render() {
+        const {classes} = this.props;
+
         return (
             <>
                 <Paper>
@@ -73,8 +163,13 @@ export class Main extends Component<{}, MainState> {
                     <Typography component="p">
                         Work in progress
                     </Typography>
+                    <Button onClick={this.layoutDag}>Layout DAG</Button>
+                    <Button onClick={this.mock}>Mock</Button>
                 </Paper>
-                <CytoscapeComponent elements={[]}
+                <Paper>
+                    <LayoutOptions onOptions={this.onLayoutOptions}/>
+                </Paper>
+                <CytoscapeComponent className={classes.cytoRoot} elements={[]}
                                     stylesheet={cytoStyles}
                                     layout={{name: "preset"}}
                                     pan={{x: 0, y: 0}}
@@ -83,3 +178,5 @@ export class Main extends Component<{}, MainState> {
         )
     }
 }
+
+export const Main = withStyles(styles)(MainInner);
