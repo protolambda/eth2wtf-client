@@ -5,7 +5,7 @@ import Slider from "@material-ui/core/Slider";
 import FormControlLabel from "@material-ui/core/FormControlLabel";
 import Checkbox from "@material-ui/core/Checkbox";
 import FormGroup from "@material-ui/core/FormGroup";
-
+import "./LayoutOptions.css";
 
 export type LayoutOptionsData = {
     // style of DAG
@@ -74,6 +74,7 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
                 <FormControlLabel
                     control={
                         <Select
+                            className="layout-ranker-select"
                             value={data.ranker}
                             onChange={this.setRanker.bind(this)}
                             inputProps={{
@@ -101,6 +102,7 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
                 <FormControlLabel
                     control={
                         <Slider
+                            className="layout-slider"
                             min={1}
                             max={100}
                             defaultValue={20}
@@ -115,6 +117,7 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
                 <FormControlLabel
                     control={
                         <Slider
+                            className="layout-slider"
                             min={1}
                             max={200}
                             defaultValue={20}
@@ -129,8 +132,9 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
                 <FormControlLabel
                     control={
                         <Slider
+                            className="layout-slider"
                             min={1}
-                            max={500}
+                            max={200}
                             defaultValue={20}
                             onChangeCommitted={this.setBasic('rankSep')}
                             step={1}

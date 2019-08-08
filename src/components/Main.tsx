@@ -4,30 +4,30 @@ import CytoscapeComponent from 'react-cytoscapejs';
 // @ts-ignore
 import dagre from 'cytoscape-dagre';
 import cytoscape, {EdgeSingularTraversing} from "cytoscape";
-import {Button, createStyles, Paper, Theme, Typography, withStyles, WithStyles} from "@material-ui/core";
+import {Button, Paper, Typography} from "@material-ui/core";
+import "./Main.css";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import {defaultLayoutOpts, LayoutOptions, LayoutOptionsData} from "./LayoutOptions";
 
 cytoscape.use(dagre);
-
-const styles = (theme: Theme) => createStyles({
-    cytoRoot: {
-        height: '100%'
-    }
-});
 
 const cytoStyles: Array<cytoscape.Stylesheet> = [
     {
         selector: 'edge',
         style: {
             'curve-style': 'straight',
-            'target-arrow-shape': 'triangle'
+            'target-arrow-shape': 'triangle',
+            "line-color": "#77b",
+            'target-arrow-color': '#aaf',
         }
     },
     {
         selector: 'node',
         style: {
-            'label': 'data(slot)'
+            'label': 'data(slot)',
+            'color': '#fff',
+            'shape': 'rectangle',
+            'background-color': '#88b'
         }
     }
 ];
@@ -38,7 +38,7 @@ type MainState = {
     layoutOpts: LayoutOptionsData
 }
 
-interface MainProps extends WithStyles<typeof styles> {
+interface MainProps {
 
 }
 
@@ -48,7 +48,7 @@ function getRandomArbitrary(min: number, max: number) {
     return Math.round(Math.random() * (max - min) + min);
 }
 
-class MainInner extends Component<MainProps, MainState> {
+export class Main extends Component<MainProps, MainState> {
 
     state: Readonly<MainState> = {
         loaded: false,
@@ -119,6 +119,8 @@ class MainInner extends Component<MainProps, MainState> {
                 const max = 100;
                 const distance = 10;
 
+                cy.elements().remove();
+
                 cy.add({
                     group: 'nodes',
                     data: {
@@ -147,29 +149,32 @@ class MainInner extends Component<MainProps, MainState> {
                         }
                     });
                 }
+
+                this.layoutDag();
             });
         }
     };
 
     render() {
-        const {classes} = this.props;
-
         return (
             <>
-                <Paper>
-                    <Typography variant="h5" component="h3">
-                        TODO graph component
-                    </Typography>
+                <Paper className="overlay infoOverlay">
                     <Typography component="p">
                         Work in progress
                     </Typography>
-                    <Button onClick={this.layoutDag}>Layout DAG</Button>
-                    <Button onClick={this.mock}>Mock</Button>
                 </Paper>
-                <Paper>
+                <Paper className="overlay debugOverlay">
+                    <Typography variant="h5" component="h3">
+                        Debug Util
+                    </Typography>
+                    <Button variant="contained" onClick={this.mock}>Mock data</Button>
+                </Paper>
+                <Paper className="overlay layoutOverlay">
                     <LayoutOptions onOptions={this.onLayoutOptions}/>
+
+                    <Button variant="contained" onClick={this.layoutDag}>Layout DAG</Button>
                 </Paper>
-                <CytoscapeComponent className={classes.cytoRoot} elements={[]}
+                <CytoscapeComponent className="cytoRoot" elements={[]}
                                     stylesheet={cytoStyles}
                                     layout={{name: "preset"}}
                                     pan={{x: 0, y: 0}}
@@ -178,5 +183,3 @@ class MainInner extends Component<MainProps, MainState> {
         )
     }
 }
-
-export const Main = withStyles(styles)(MainInner);
