@@ -1,24 +1,10 @@
 import React, {Component} from 'react';
-import Select from "@material-ui/core/Select";
-import MenuItem from "@material-ui/core/MenuItem";
 import Slider from "@material-ui/core/Slider";
 import FormControlLabel from "@material-ui/core/FormControlLabel";
 import Checkbox from "@material-ui/core/Checkbox";
 import FormGroup from "@material-ui/core/FormGroup";
 import "./LayoutOptions.css";
-
-export type LayoutOptionsData = {
-    // style of DAG
-    ranker: string,
-    // ignore empty slots or not
-    compact: boolean,
-    // the separation between adjacent nodes with the same slot
-    nodeSep: number,
-    // the separation between adjacent edges with the same slot
-    edgeSep: number,
-    // the separation between slots
-    rankSep: number,
-}
+import {LayoutOptionsData} from "../graph/Graph";
 
 type LayoutOptionsState = {
     data: LayoutOptionsData
@@ -29,17 +15,10 @@ interface LayoutOptionsProps {
 }
 
 export const defaultLayoutOpts: Readonly<LayoutOptionsData> = {
-    ranker: 'network-simplex',
     compact: false,
     nodeSep: 10,
     edgeSep: 10,
     rankSep: 5
-};
-
-const rankers: Record<string, string> = {
-    'network-simplex': 'Simplex',
-    'tight-tree': 'Tight tree',
-    'longest-path': 'Longest path',
 };
 
 export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsState> {
@@ -71,22 +50,6 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
 
         return (
             <FormGroup>
-                <FormControlLabel
-                    control={
-                        <Select
-                            className="layout-ranker-select"
-                            value={data.ranker}
-                            onChange={this.setRanker.bind(this)}
-                            inputProps={{
-                                name: 'ranker',
-                                id: 'ranker',
-                            }}
-                        >
-                            {Object.entries(rankers).map(([k, v]) => (<MenuItem key={k} value={k}>{v}</MenuItem>))}
-                        </Select>
-                    }
-                    label="DAG style"/>
-
                 <FormControlLabel
                     control={
                         <Checkbox

@@ -64,20 +64,6 @@ export class Main extends Component<MainProps, MainState> {
         })
     };
 
-    setupWS = () => {
-        const rws = new ReconnectingWebSocket('ws://localhost:4000/ws', [], {debug: true});
-        rws.binaryType = 'arraybuffer';
-        rws.addEventListener('close', this.onStatusWS(false));
-        rws.addEventListener('open', this.onStatusWS(true));
-        rws.addEventListener('message', (msg) => {
-            const buf = msg.data;
-            // TODO
-        });
-        return () => {
-            rws.close();
-        };
-    };
-
     makeCyRef = (cy: CY) => {
         this.cy = cy;
         // TODO: reload data from WS on CY reset.
@@ -88,29 +74,6 @@ export class Main extends Component<MainProps, MainState> {
         this.setState({layoutOpts: data}, this.layoutDag);
     };
 
-    layoutDag = () => {
-        if (this.cy) {
-            const options = {
-                animate: true,
-                animationDuration: 2000,
-                name: 'dagre',
-                // @ts-ignore
-                ranker: this.state.layoutOpts.ranker,
-                nodeSep: this.state.layoutOpts.nodeSep,
-                edgeSep: this.state.layoutOpts.edgeSep,
-                rankSep: this.state.layoutOpts.rankSep,
-                // @ts-ignore
-                rankDir: 'LR', // TODO: maybe rotate on mobile layout?
-            };
-
-            if (!this.state.layoutOpts.compact) {
-                // @ts-ignore
-                options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
-            }
-            const layout = this.cy.layout(options);
-            layout.run();
-        }
-    };
 
     mock = () => {
         const cy = this.cy;
@@ -176,6 +139,8 @@ export class Main extends Component<MainProps, MainState> {
                 </Paper>
                 <CytoscapeComponent className="cytoRoot" elements={[]}
                                     stylesheet={cytoStyles}
+                                    minZoom={10}
+                                    maxZoom={1000}
                                     layout={{name: "preset"}}
                                     pan={{x: 0, y: 0}}
                                     cy={this.makeCyRef}/>
