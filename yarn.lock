@@ -899,6 +899,48 @@
     lodash "^4.17.11"
     to-fast-properties "^2.0.0"
 
+"@chainsafe/bit-utils@^0.1.2", "@chainsafe/bit-utils@^0.1.3":
+  version "0.1.3"
+  resolved "https://registry.yarnpkg.com/@chainsafe/bit-utils/-/bit-utils-0.1.3.tgz#d29a69c161526fda8bf0880da3d62a4a7100e169"
+  integrity sha512-0OhFBmsMleMH1NaSC2dO3D3PieJxSJBEqgGHhjoBCf8gc/BP4LHN2OLdMxRjbJK8gduDrwKRHdeGZ34pkgM5ew==
+
+"@chainsafe/eth2.0-params@0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@chainsafe/eth2.0-params/-/eth2.0-params-0.1.0.tgz#23bbaf1b43a050bd9e14ff80863c919f48ecdcce"
+  integrity sha512-yhrc6LgYV+N1GqY1dAMyRZ9nwEBEDbJh7Yaj+ItoIwI4/PKGOcn7g2ym9iL93dvjvD+x4BJ4sYKN7a+cbyaV3g==
+  dependencies:
+    "@chainsafe/eth2.0-types" "^0.1.0"
+    "@types/bn.js" "^4.11.4"
+    bn.js "^4.11.8"
+
+"@chainsafe/eth2.0-ssz-types@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@chainsafe/eth2.0-ssz-types/-/eth2.0-ssz-types-0.1.0.tgz#2ad654b0a0969d17c40f041dad1bb848dd5896e9"
+  integrity sha512-/1PH0pspnbrATR164SGCMiR++6JMaPPoosvNdRbo+UmuRNnCAyzvXR9TP5HNrU4eGq7o5x6LgmlwTb8ylzcRmA==
+  dependencies:
+    "@chainsafe/eth2.0-params" "0.1.0"
+    "@chainsafe/ssz" "0.5.1"
+
+"@chainsafe/eth2.0-types@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@chainsafe/eth2.0-types/-/eth2.0-types-0.1.0.tgz#0864e9e52570fdb40be9f34b6063b29d83ed4923"
+  integrity sha512-SV8+/cLiFQrZeu9J6r3rzxB4s8ZR/QtVhMzPRtob1J+yeft5NcaDwygjUiIc4TYESr2IU/e7OvuYiEq0y/6dpw==
+  dependencies:
+    "@chainsafe/bit-utils" "^0.1.2"
+    "@types/bn.js" "^4.11.4"
+    bn.js "^4.11.8"
+
+"@chainsafe/ssz@0.5.1", "@chainsafe/ssz@^0.5.1":
+  version "0.5.1"
+  resolved "https://registry.yarnpkg.com/@chainsafe/ssz/-/ssz-0.5.1.tgz#5d8fa0d00ee7d91fc5de914a843bd47125213c6a"
+  integrity sha512-heJsVhB7hCWubCHqCaYrctv7IuzCQkAWduwJleCSv9K2EXBcEmDeKPg4DQ/b9cQyXQbn2hwEuSDcMcQESwaIfA==
+  dependencies:
+    "@chainsafe/bit-utils" "^0.1.3"
+    "@types/bn.js" "^4.11.4"
+    assert "^1.4.1"
+    bcrypto "^4.1.0"
+    bn.js "^4.11.8"
+
 "@cnakazawa/watch@^1.0.3":
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/@cnakazawa/watch/-/watch-1.0.3.tgz#099139eaec7ebf07a27c1786a3ff64f39464d2ef"
@@ -1316,6 +1358,13 @@
   integrity sha512-XYVgHF2sQ0YblLRMLNPB3CkFMewzFmlDsH/TneZFHUXDlABQgh88uOxuez7ZcXxayLFrqLwtDH1t+FmlFwNZxw==
   dependencies:
     "@babel/types" "^7.3.0"
+
+"@types/bn.js@^4.11.4":
+  version "4.11.5"
+  resolved "https://registry.yarnpkg.com/@types/bn.js/-/bn.js-4.11.5.tgz#40e36197433f78f807524ec623afcf0169ac81dc"
+  integrity sha512-AEAZcIZga0JgVMHNtl1CprA/hXX7/wPt79AgR4XqaDt7jyj3QWYw6LPoOiznPtugDmlubUnAahMs2PFxGcQrng==
+  dependencies:
+    "@types/node" "*"
 
 "@types/cytoscape@^3.8.0":
   version "3.8.0"
@@ -1898,7 +1947,7 @@ assert-plus@1.0.0, assert-plus@^1.0.0:
   resolved "https://registry.yarnpkg.com/assert-plus/-/assert-plus-1.0.0.tgz#f12e0f3c5d77b0b1cdd9146942e4e96c1e4dd525"
   integrity sha1-8S4PPF13sLHN2RRpQuTpbB5N1SU=
 
-assert@^1.1.1:
+assert@^1.1.1, assert@^1.4.1:
   version "1.5.0"
   resolved "https://registry.yarnpkg.com/assert/-/assert-1.5.0.tgz#55c109aaf6e0aefdb3dc4b71240c70bf574b18eb"
   integrity sha512-EDsgawzwoun2CZkCgtxJbv392v4nbk9XDD06zI+kQYoBM/3RBWLlEyJARDOmhAAosBjWACEkKL6S+lIZtcAubA==
@@ -2166,6 +2215,16 @@ bcrypt-pbkdf@^1.0.0:
   dependencies:
     tweetnacl "^0.14.3"
 
+bcrypto@^4.1.0:
+  version "4.1.0"
+  resolved "https://registry.yarnpkg.com/bcrypto/-/bcrypto-4.1.0.tgz#04fd2ec095e4eba121412e287b9c542cd7230a57"
+  integrity sha512-7QMCwNPAM53PcRG2gHwMHLcTjSwyQPYfTptRS38KuBZ7/Bf7zXVHZrQlvNnpu/m13qCVEMY4Wimnc+qt+rvMZg==
+  dependencies:
+    bsert "~0.0.10"
+    bufio "~1.0.6"
+    loady "~0.0.1"
+    nan "^2.13.2"
+
 big.js@^5.2.2:
   version "5.2.2"
   resolved "https://registry.yarnpkg.com/big.js/-/big.js-5.2.2.tgz#65f0af382f578bcdc742bd9c281e9cb2d7768328"
@@ -2181,7 +2240,7 @@ bluebird@^3.5.3:
   resolved "https://registry.yarnpkg.com/bluebird/-/bluebird-3.5.4.tgz#d6cc661595de30d5b3af5fcedd3c0b3ef6ec5714"
   integrity sha512-FG+nFEZChJrbQ9tIccIfZJBz3J7mLrAhxakAbnrJWn8d7aKOC+LWifa0G+p4ZqKp4y13T7juYvdhq9NzKdsrjw==
 
-bn.js@^4.0.0, bn.js@^4.1.0, bn.js@^4.1.1, bn.js@^4.4.0:
+bn.js@^4.0.0, bn.js@^4.1.0, bn.js@^4.1.1, bn.js@^4.11.8, bn.js@^4.4.0:
   version "4.11.8"
   resolved "https://registry.yarnpkg.com/bn.js/-/bn.js-4.11.8.tgz#2cde09eb5ee341f484746bb0309b3253b1b1442f"
   integrity sha512-ItfYfPLkWHUjckQCk8xC+LwxgK8NYcXywGigJgSwOP8Y2iyWT4f2vsZnoOXTTbo+o5yXmIUJ4gn5538SO5S3gA==
@@ -2344,6 +2403,11 @@ bser@^2.0.0:
   dependencies:
     node-int64 "^0.4.0"
 
+bsert@~0.0.10:
+  version "0.0.10"
+  resolved "https://registry.yarnpkg.com/bsert/-/bsert-0.0.10.tgz#231ac82873a1418c6ade301ab5cd9ae385895597"
+  integrity sha512-NHNwlac+WPy4t2LoNh8pXk8uaIGH3NSaIUbTTRXGpE2WEbq0te/tDykYHkFK57YKLPjv/aGHmbqvnGeVWDz57Q==
+
 buffer-from@^1.0.0:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/buffer-from/-/buffer-from-1.1.1.tgz#32713bc028f75c02fdb710d7c7bcec1f2c6070ef"
@@ -2367,6 +2431,11 @@ buffer@^4.3.0:
     base64-js "^1.0.2"
     ieee754 "^1.1.4"
     isarray "^1.0.0"
+
+bufio@~1.0.6:
+  version "1.0.6"
+  resolved "https://registry.yarnpkg.com/bufio/-/bufio-1.0.6.tgz#e0eb6d70b2efcc997b6f8872173540967f90fa4d"
+  integrity sha512-mjYZFRHmI9bk3Oeexu0rWjHFY+w6hGLabdmwSFzq+EFr4MHHsNOYduDVdYl71NG5pTPL7GGzUCMk9cYuV34/Qw==
 
 builtin-status-codes@^3.0.0:
   version "3.0.0"
@@ -6150,6 +6219,11 @@ loader-utils@1.2.3, loader-utils@^1.0.1, loader-utils@^1.0.2, loader-utils@^1.1.
     emojis-list "^2.0.0"
     json5 "^1.0.1"
 
+loady@~0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/loady/-/loady-0.0.1.tgz#24a99c14cfed9cd0bffed365b1836035303f7e5d"
+  integrity sha512-PW5Z13Jd0v6ZcA1P6ZVUc3EV8BJwQuAiwUvvT6VQGHoaZ1d/tu7r1QZctuKfQqwy9SFBWeAGfcIdLxhp7ZW3Rw==
+
 locate-path@^2.0.0:
   version "2.0.0"
   resolved "https://registry.yarnpkg.com/locate-path/-/locate-path-2.0.0.tgz#2b568b265eec944c6d9c0de9c3dbbbca0354cd8e"
@@ -6568,6 +6642,11 @@ nan@^2.12.1:
   version "2.13.2"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.13.2.tgz#f51dc7ae66ba7d5d55e1e6d4d8092e802c9aefe7"
   integrity sha512-TghvYc72wlMGMVMluVo9WRJc0mB8KxxF/gZ4YYFy7V2ZQX9l7rgbPg7vjS9mt6U5HXODVFVI2bOduCzwOMv/lw==
+
+nan@^2.13.2:
+  version "2.14.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.14.0.tgz#7818f722027b2459a86f0295d434d1fc2336c52c"
+  integrity sha512-INOFj37C7k3AfaNTtX8RhsTw7qRy7eLET14cROi9+5HAVbbHuIWUHEauBv5qT4Av2tWasiTY1Jw6puUNqRJXQg==
 
 nanomatch@^1.2.9:
   version "1.2.13"
