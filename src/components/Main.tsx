@@ -3,11 +3,12 @@ import React, {Component} from 'react';
 import CytoscapeComponent from 'react-cytoscapejs';
 // @ts-ignore
 import dagre from 'cytoscape-dagre';
-import cytoscape, {EdgeSingularTraversing} from "cytoscape";
+import cytoscape from "cytoscape";
 import {Button, Paper, Typography} from "@material-ui/core";
 import "./Main.css";
-import ReconnectingWebSocket from "reconnecting-websocket";
-import {defaultLayoutOpts, LayoutOptions, LayoutOptionsData} from "./LayoutOptions";
+import {defaultLayoutOpts, LayoutOptions} from "./LayoutOptions";
+import {Graph, LayoutOptionsData} from "../graph/Graph";
+import {chunkWidth} from "../graph/Constants";
 
 cytoscape.use(dagre);
 
@@ -44,10 +45,6 @@ interface MainProps {
 
 type CY = cytoscape.Core;
 
-function getRandomArbitrary(min: number, max: number) {
-    return Math.round(Math.random() * (max - min) + min);
-}
-
 export class Main extends Component<MainProps, MainState> {
 
     state: Readonly<MainState> = {
@@ -58,7 +55,9 @@ export class Main extends Component<MainProps, MainState> {
 
     private cy: CY | undefined;
 
-    onStatusWS = (open: boolean) => () => {
+    private graph: Graph | undefined;
+
+    onStatusWS(open: boolean) {
         this.setState({
             wsOpen: open,
         })
@@ -66,56 +65,20 @@ export class Main extends Component<MainProps, MainState> {
 
     makeCyRef = (cy: CY) => {
         this.cy = cy;
+        this.graph = new Graph(cy, this.onStatusWS);
+        this.graph.setupCY();
         // TODO: reload data from WS on CY reset.
         console.log("reset CY instance");
     };
 
+    layoutDag() {
+        if(this.graph) {
+            this.graph.layoutDag(this.state.layoutOpts);
+        }
+    }
+
     onLayoutOptions = (data: LayoutOptionsData) => {
         this.setState({layoutOpts: data}, this.layoutDag);
-    };
-
-
-    mock = () => {
-        const cy = this.cy;
-        if (cy) {
-            cy.batch(() => {
-                const max = 100;
-                const distance = 10;
-
-                cy.elements().remove();
-
-                cy.add({
-                    group: 'nodes',
-                    data: {
-                        id: `node_0`,
-                        slot: 0
-                    }
-                });
-
-                for (let i = 1; i < max; i++) {
-                    const prev = getRandomArbitrary(Math.max(0, i - distance), i-1);
-                    const prevNode = cy.$id(`node_${prev}`);
-                    const slot = prevNode.data('slot') + getRandomArbitrary(1, 5);
-                    cy.add({
-                        group: 'nodes',
-                        data: {
-                            id: `node_${i}`,
-                            slot: slot
-                        }
-                    });
-                    cy.add({
-                        group: 'edges',
-                        data: {
-                            id: `edge_${prev}_${i}`,
-                            source: `node_${prev}`,
-                            target: `node_${i}`,
-                        }
-                    });
-                }
-
-                this.layoutDag();
-            });
-        }
     };
 
     render() {
@@ -130,7 +93,7 @@ export class Main extends Component<MainProps, MainState> {
                     <Typography variant="h5" component="h3">
                         Debug Util
                     </Typography>
-                    <Button variant="contained" onClick={this.mock}>Mock data</Button>
+                    <Button variant="contained">Mock data</Button>
                 </Paper>
                 <Paper className="overlay layoutOverlay">
                     <LayoutOptions onOptions={this.onLayoutOptions}/>
@@ -140,7 +103,7 @@ export class Main extends Component<MainProps, MainState> {
                 <CytoscapeComponent className="cytoRoot" elements={[]}
                                     stylesheet={cytoStyles}
                                     minZoom={10}
-                                    maxZoom={1000}
+                                    maxZoom={chunkWidth * 20}
                                     layout={{name: "preset"}}
                                     pan={{x: 0, y: 0}}
                                     cy={this.makeCyRef}/>

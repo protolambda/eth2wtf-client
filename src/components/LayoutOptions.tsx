@@ -17,8 +17,7 @@ interface LayoutOptionsProps {
 export const defaultLayoutOpts: Readonly<LayoutOptionsData> = {
     compact: false,
     nodeSep: 10,
-    edgeSep: 10,
-    rankSep: 5
+    edgeSep: 10
 };
 
 export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsState> {
@@ -90,21 +89,6 @@ export class LayoutOptions extends Component<LayoutOptionsProps, LayoutOptionsSt
                         />
                     }
                     label="Edge separation"
-                />
-
-                <FormControlLabel
-                    control={
-                        <Slider
-                            className="layout-slider"
-                            min={1}
-                            max={200}
-                            defaultValue={20}
-                            onChangeCommitted={this.setBasic('rankSep')}
-                            step={1}
-                            valueLabelDisplay="auto"
-                        />
-                    }
-                    label="Slot separation"
                 />
             </FormGroup>
         );

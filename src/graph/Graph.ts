@@ -1,7 +1,7 @@
-import cytoscape, {EdgeSingularTraversing, EventObject, NodeSingular} from "cytoscape";
+import {EventObject, NodeSingular} from "cytoscape";
 import ReconnectingWebSocket from "reconnecting-websocket";
-
-type CY = cytoscape.Core;
+import {ChunkID, chunkWidth, ContentID, CY, Point, WSSendFn} from "./Constants";
+import {BlockHeadersContentType} from "./BlockHeaders";
 
 type WSStatusHandler = (status: boolean) => void;
 
@@ -13,46 +13,35 @@ export type LayoutOptionsData = {
     // the separation between adjacent nodes with the same slot
     nodeSep: number,
     // the separation between adjacent edges with the same slot
-    edgeSep: number,
-    // the separation between slots
-    rankSep: number,
+    edgeSep: number
 }
 
-type Point = {
-    x: number;
-    y: number;
+type ChunkContentMaker = (id: ChunkID) => ChunkContent;
+
+interface ChunkContent {
+    load: (ws: WSSendFn) => void;
+    unload: (ws: WSSendFn, cy: CY) => void;
+    refresh: (ws: WSSendFn) => void;
+    handleMsg: (buf: Buffer, cy: CY) => void
 }
-
-// content ID. A byte. Used to identify the type of graph content.
-type ContentID = number;
-
-type ChunkContentData = any;
-
-type ChunkID = number;
 
 type TimestampMS = number;
 
 type ChunkData = {
     lastRequestTimestamp: TimestampMS;
-    contents: Record<ContentID, ChunkContentData>
+    contents: Record<ContentID, ChunkContent>
 }
 
-const chunkUpdateDelay: TimestampMS = 1000;
-
-type WSSendFn = (msg: Buffer) => void;
-
-const slotWidth = 100;
-// A chunk width, in pixels, each pixel is 1/100 of a second.
-const chunkWidth = 400 * 100;
+const chunkUpdateDelay: TimestampMS = 10000;
 
 type GraphContentType = {
-    id: ContentID;
     transform: (node: NodeSingular, pos: Point) => Point;
-    loadChunk: (id: ChunkID, ws: WSSendFn) => void;
-    unloadChunk: (id: ChunkID, data: ChunkContentData, ws: WSSendFn, cy: CY) => void;
-    updateChunk: (id: ChunkID, data: ChunkContentData, ws: WSSendFn) => void;
-    initContent: (id: ChunkID) => ChunkContentData;
-    handleMsg: (buf: Buffer, data: ChunkContentData, cy: CY) => void
+    initContent: ChunkContentMaker;
+}
+
+type GraphContentTypeDef = {
+    ID: ContentID;
+    ContentType: GraphContentType;
 }
 
 function now(): TimestampMS {
@@ -74,7 +63,7 @@ export class Graph {
 
     private chunks: Map<ChunkID, ChunkData>;
 
-    private contentTypes: Record<ContentID, GraphContentType>;
+    private contentTypes: Array<GraphContentTypeDef>;
 
     constructor(cy: CY, onWsStatusChange: WSStatusHandler) {
         this.cy = cy;
@@ -85,6 +74,7 @@ export class Graph {
         this.maxChunk = 0;
         this.contentTypes = [
             // TODO blocks, eth1, attestations, etc.
+            {ID: 1, ContentType: BlockHeadersContentType}
         ];
     }
 
@@ -96,19 +86,26 @@ export class Graph {
             ranker: 'network-simplex',
             nodeSep: opts.nodeSep,
             edgeSep: opts.edgeSep,
-            rankSep: opts.rankSep,
+            rankSep: 100, // TODO heuristic?
             // @ts-ignore
             rankDir: 'LR', // TODO: maybe rotate on mobile layout?
             // TODO: maybe check the type of the node. I.e. only position eth2 blocks to align to slots?
             // @ts-ignore
-            transform: ( node: NodeSingular, pos: Point): Point =>
-                ({x: node.data('slot') * slotWidth, y: pos.y}),
+            transform: ( node: NodeSingular, pos: Point): Point => {
+                const contentType: GraphContentType | undefined = node.data('content_type');
+                if(contentType !== undefined) {
+                    return contentType.transform(node, pos);
+                } else {
+                    return pos;
+                }
+            },
         };
 
-        if (!opts.compact) {
-            // @ts-ignore
-            options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
-        }
+        // TODO test compact view (no transform, plain un-ranked dag)
+        // if (!opts.compact) {
+        //     // @ts-ignore
+        //     options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
+        // }
         const layout = this.cy.layout(options);
         layout.run();
     };
@@ -124,10 +121,10 @@ export class Graph {
         };
     };
 
-    sendWSMsg(buf: Buffer) {
+    sendWSMsg = (id: ContentID) => ((buf: Buffer) => {
         // TODO: ws
-        console.log("send msg: ", buf);
-    }
+        console.log("send msg: ", id, buf);
+    });
 
     loadChunk(chunkID: ChunkID) {
         // if the chunk already exists:
@@ -136,15 +133,17 @@ export class Graph {
             // only update if not requested again within X time.
             const t = now();
             if (c.lastRequestTimestamp + chunkUpdateDelay < t) {
-                // request data
-                for (let ct of Object.values(this.contentTypes)) {
-                    ct.updateChunk(chunkID, c.contents[ct.id], this.sendWSMsg);
+                c.lastRequestTimestamp = t;
+                // refresh data
+                for (let ct of this.contentTypes) {
+                    const content = c.contents[ct.ID];
+                    content.refresh(this.sendWSMsg(ct.ID));
                 }
             }
         } else {
-            const contents: Record<ContentID, ChunkContentData> = {};
-            for (let ct of Object.values(this.contentTypes)) {
-                contents[ct.id] = ct.initContent;
+            const contents: Record<ContentID, ChunkContent> = {};
+            for (let ct of this.contentTypes) {
+                contents[ct.ID] = ct.ContentType.initContent(chunkID);
             }
             const chunk = {
                 lastRequestTimestamp: now(),
@@ -152,9 +151,10 @@ export class Graph {
             };
             // start loading new chunk
             this.chunks.set(chunkID, chunk);
-            // request data
-            for (let ct of Object.values(this.contentTypes)) {
-                ct.loadChunk(chunkID, this.sendWSMsg);
+            // load data
+            for (let ct of this.contentTypes) {
+                const content = chunk.contents[ct.ID];
+                content.load(this.sendWSMsg(ct.ID));
             }
         }
     }
@@ -164,58 +164,67 @@ export class Graph {
         if(c) {
             this.cy.batch(() => {
                 // unload all contents of the chunk
-                for (let ct of Object.values(this.contentTypes)) {
-                    ct.unloadChunk(chunkID, c.contents[ct.id], this.sendWSMsg, this.cy);
+                for (let ct of this.contentTypes) {
+                    const content = c.contents[ct.ID];
+                    content.unload(this.sendWSMsg(ct.ID), this.cy);
                 }
             });
         }
         this.chunks.delete(chunkID);
     }
 
+    loadView() {
+        const extent = this.cy.extent();
+        console.log("viewport event, extent:", extent);
+
+        const minChunk = Math.floor(extent.x1 / chunkWidth);
+        const maxChunk = Math.ceil(extent.x2 / chunkWidth);
+        const chunks = maxChunk - minChunk;
+        const unloadChunks = Math.ceil(chunks / unloadRatio);
+
+        console.log({minChunk, maxChunk, chunks, unloadChunks});
+
+        // bounds are inclusive (i.e. not unloaded)
+        const minUnloadBound = this.minChunk - unloadChunks;
+        const maxUnloadBound = this.maxChunk + unloadChunks;
+
+        // unload on min side, only out of margin bounds.
+        for (let i = minUnloadBound - 1; i >= 0; i--) {
+            if (!this.chunks.has(i)) {
+                // stop when the chunk does not exist
+                break;
+            }
+            this.unloadChunk(i);
+        }
+
+        const chunksWithMargin = chunks + unloadChunks + unloadChunks;
+        // Start loading from center of the view. Expand outwards.
+        let left = minChunk + Math.floor(chunks / 2);
+        let right = left + 1;
+        for (let i = 0; i < chunksWithMargin; i++) {
+            if (left >= minUnloadBound) {
+                this.loadChunk(left);
+                left--;
+            }
+            if (right <= maxUnloadBound) {
+                this.loadChunk(right);
+                right++;
+            }
+        }
+
+        // unload on max side, only out of margin bounds.
+        for (let i = maxUnloadBound + 1; ; i++) {
+            if (!this.chunks.has(i)) {
+                // stop when the chunk does not exist
+                break;
+            }
+            this.unloadChunk(i);
+        }
+    }
+
     setupCY() {
         this.cy.on('viewport', (event: EventObject) => {
-            const extent = this.cy.extent();
-            const minChunk = Math.floor(extent.x1 / chunkWidth);
-            const maxChunk = Math.ceil(extent.x2 / chunkWidth);
-            const chunks = maxChunk - minChunk;
-            const unloadChunks = Math.ceil(chunks / unloadRatio);
-
-            // bounds are inclusive (i.e. not unloaded)
-            const minUnloadBound = this.minChunk - unloadChunks;
-            const maxUnloadBound = this.maxChunk + unloadChunks;
-
-            // unload on min side, only out of margin bounds.
-            for (let i = minUnloadBound - 1; i >= 0; i--) {
-                if (!this.chunks.has(i)) {
-                    // stop when the chunk does not exist
-                    break;
-                }
-                this.unloadChunk(i);
-            }
-
-            const chunksWithMargin = chunks + unloadChunks + unloadChunks;
-            // Start loading from center of the view. Expand outwards.
-            let left = minChunk + Math.floor(chunks / 2);
-            let right = left + 1;
-            for (let i = 0; i < chunksWithMargin; i++) {
-                if (left >= minUnloadBound) {
-                    this.loadChunk(left);
-                    left--;
-                }
-                if (right <= maxUnloadBound) {
-                    this.loadChunk(right);
-                    right++;
-                }
-            }
-
-            // unload on max side, only out of margin bounds.
-            for (let i = maxUnloadBound + 1; ; i++) {
-                if (!this.chunks.has(i)) {
-                    // stop when the chunk does not exist
-                    break;
-                }
-                this.unloadChunk(i);
-            }
+            this.loadView();
         });
     }
 
@@ -254,7 +263,7 @@ export class Graph {
                     return;
                 }
                 // pass a view of the message buffer, with the topic cut off.
-                ct.handleMsg(msg.subarray(2), chunkContent, this.cy);
+                chunkContent.handleMsg(msg.subarray(2), this.cy);
                 break;
             case 2:
                 // TODO update status
