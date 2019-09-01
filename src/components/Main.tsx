@@ -23,12 +23,23 @@ const cytoStyles: Array<cytoscape.Stylesheet> = [
         }
     },
     {
-        selector: 'node',
+        selector: 'node[slot]',
         style: {
             'label': 'data(slot)',
             'color': '#fff',
             'shape': 'rectangle',
             'background-color': '#88b'
+        }
+    },
+    {
+        selector: 'node[chunk_box]',
+        style: {
+            'label': 'data(chunk_box)',
+            'color': '#fff',
+            'background-color': '#000',
+            'shape': 'rectangle',
+            'height': 1000,
+            'width': 20,
         }
     }
 ];
@@ -71,11 +82,23 @@ export class Main extends Component<MainProps, MainState> {
         console.log("reset CY instance");
     };
 
-    layoutDag() {
+    layoutDag = () => {
         if(this.graph) {
             this.graph.layoutDag(this.state.layoutOpts);
         }
-    }
+    };
+
+    fitDag = () => {
+        if(this.graph) {
+            this.graph.fit();
+        }
+    };
+
+    panDag = () => {
+        if(this.graph) {
+            this.graph.pan(0, 0);
+        }
+    };
 
     onLayoutOptions = (data: LayoutOptionsData) => {
         this.setState({layoutOpts: data}, this.layoutDag);
@@ -99,11 +122,13 @@ export class Main extends Component<MainProps, MainState> {
                     <LayoutOptions onOptions={this.onLayoutOptions}/>
 
                     <Button variant="contained" onClick={this.layoutDag}>Layout DAG</Button>
+                    <Button variant="contained" onClick={this.fitDag}>Fit DAG</Button>
+                    <Button variant="contained" onClick={this.panDag}>Pan DAG</Button>
                 </Paper>
                 <CytoscapeComponent className="cytoRoot" elements={[]}
                                     stylesheet={cytoStyles}
-                                    minZoom={10}
-                                    maxZoom={chunkWidth * 20}
+                                    minZoom={0.1}
+                                    maxZoom={10}
                                     layout={{name: "preset"}}
                                     pan={{x: 0, y: 0}}
                                     cy={this.makeCyRef}/>

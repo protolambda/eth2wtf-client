@@ -50,7 +50,7 @@ function now(): TimestampMS {
 
 // Viewport width * unloadRatio == width of margin around viewport that is not unloaded.
 // Rounded up, dealt with in chunks.
-const unloadRatio = 0.3;
+const unloadRatio = 1.3;
 
 export class Graph {
 
@@ -96,7 +96,8 @@ export class Graph {
                 if(contentType !== undefined) {
                     return contentType.transform(node, pos);
                 } else {
-                    return pos;
+                    // keep the node position as-is.
+                    return node.position();
                 }
             },
         };
@@ -109,6 +110,14 @@ export class Graph {
         const layout = this.cy.layout(options);
         layout.run();
     };
+
+    fit() {
+        this.cy.fit();
+    }
+
+    pan(x: number, y: number) {
+        this.cy.pan({x: x, y: y})
+    }
 
     setupWS(): WSCloser {
         const rws = new ReconnectingWebSocket('ws://localhost:4000/ws', [], {debug: true});
@@ -127,12 +136,14 @@ export class Graph {
     });
 
     loadChunk(chunkID: ChunkID) {
+        console.log("loading chunk", chunkID);
         // if the chunk already exists:
         const c = this.chunks.get(chunkID);
         if(c !== undefined) {
             // only update if not requested again within X time.
             const t = now();
             if (c.lastRequestTimestamp + chunkUpdateDelay < t) {
+                console.log("refreshing older existing chunk", chunkID);
                 c.lastRequestTimestamp = t;
                 // refresh data
                 for (let ct of this.contentTypes) {
@@ -141,6 +152,7 @@ export class Graph {
                 }
             }
         } else {
+            console.log("loading new chunk", chunkID);
             const contents: Record<ContentID, ChunkContent> = {};
             for (let ct of this.contentTypes) {
                 contents[ct.ID] = ct.ContentType.initContent(chunkID);
@@ -149,6 +161,7 @@ export class Graph {
                 lastRequestTimestamp: now(),
                 contents: contents,
             };
+            console.log("created new chunk", chunkID, chunk);
             // start loading new chunk
             this.chunks.set(chunkID, chunk);
             // load data
@@ -156,10 +169,39 @@ export class Graph {
                 const content = chunk.contents[ct.ID];
                 content.load(this.sendWSMsg(ct.ID));
             }
+            this.cy.batch(() => {
+                if (this.cy.$id(`chunk_bound_${chunkID}`).empty()){
+                    this.cy.add({
+                        group: 'nodes',
+                        data: {
+                            chunk_box: chunkID,
+                            id: `chunk_bound_${chunkID}`,
+                        },
+                        position: {
+                            x: chunkID * chunkWidth,
+                            y: 0,
+                        }
+                    });
+                }
+                if (this.cy.$id(`chunk_bound_${chunkID+1}`).empty()){
+                    this.cy.add({
+                        group: 'nodes',
+                        data: {
+                            chunk_box: chunkID,
+                            id: `chunk_bound_${chunkID+1}`,
+                        },
+                        position: {
+                            x: (chunkID + 1) * chunkWidth,
+                            y: 0,
+                        }
+                    });
+                }
+            });
         }
     }
 
     unloadChunk(chunkID: ChunkID) {
+        console.log("unloading chunk", chunkID);
         const c = this.chunks.get(chunkID);
         if(c) {
             this.cy.batch(() => {
@@ -176,17 +218,26 @@ export class Graph {
     loadView() {
         const extent = this.cy.extent();
         console.log("viewport event, extent:", extent);
+        console.log("current zoom: ", this.cy.zoom());
 
         const minChunk = Math.floor(extent.x1 / chunkWidth);
         const maxChunk = Math.ceil(extent.x2 / chunkWidth);
         const chunks = maxChunk - minChunk;
-        const unloadChunks = Math.ceil(chunks / unloadRatio);
+
+        if (chunks > 10) {
+            console.log("too many chunks! aborting");
+            return
+        }
+
+        const unloadChunks = Math.round(chunks * unloadRatio);
 
         console.log({minChunk, maxChunk, chunks, unloadChunks});
 
         // bounds are inclusive (i.e. not unloaded)
-        const minUnloadBound = this.minChunk - unloadChunks;
-        const maxUnloadBound = this.maxChunk + unloadChunks;
+        const minUnloadBound = Math.max(minChunk - unloadChunks, 0);
+        const maxUnloadBound = maxChunk + unloadChunks;
+
+        console.log({minUnloadBound, maxUnloadBound});
 
         // unload on min side, only out of margin bounds.
         for (let i = minUnloadBound - 1; i >= 0; i--) {
@@ -197,11 +248,11 @@ export class Graph {
             this.unloadChunk(i);
         }
 
-        const chunksWithMargin = chunks + unloadChunks + unloadChunks;
         // Start loading from center of the view. Expand outwards.
-        let left = minChunk + Math.floor(chunks / 2);
+        let left = Math.floor((minUnloadBound + maxUnloadBound) / 2);
         let right = left + 1;
-        for (let i = 0; i < chunksWithMargin; i++) {
+        console.log({left, right});
+        while (true) {
             if (left >= minUnloadBound) {
                 this.loadChunk(left);
                 left--;
@@ -209,6 +260,9 @@ export class Graph {
             if (right <= maxUnloadBound) {
                 this.loadChunk(right);
                 right++;
+            }
+            if (left < minUnloadBound && right > maxUnloadBound) {
+                break;
             }
         }
 
@@ -220,9 +274,11 @@ export class Graph {
             }
             this.unloadChunk(i);
         }
+        console.log("finished viewport update");
     }
 
     setupCY() {
+        this.loadView();
         this.cy.on('viewport', (event: EventObject) => {
             this.loadView();
         });
@@ -251,7 +307,7 @@ export class Graph {
                     console.log("unexpected content identifier: ", contentID);
                     return;
                 }
-                const chunkID = (new Uint32Array(msg, 2, 4))[0];
+                const chunkID = (new Uint32Array(msg, 2, 1))[0];
                 const chunk = this.chunks.get(chunkID);
                 if(!chunk) {
                     console.log(`expected to have chunk ${chunkID} available for content type ${contentID}`);

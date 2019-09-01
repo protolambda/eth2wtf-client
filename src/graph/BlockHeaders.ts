@@ -18,11 +18,11 @@ export class BlockHeadersChunkContent {
 
     private id: ChunkID;
 
-    private countsPerSlot: Array<number>;
+    private headerChunkIndices: Array<number>;
 
     constructor(id: ChunkID) {
         this.id = id;
-        this.countsPerSlot = new Array<number>(slotsPerChunk);
+        this.headerChunkIndices = new Array<number>();
     }
 
     load(ws: WSSendFn){
