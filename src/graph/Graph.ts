@@ -16,13 +16,13 @@ export type LayoutOptionsData = {
     edgeSep: number
 }
 
-type ChunkContentMaker = (id: ChunkID) => ChunkContent;
+type ChunkContentMaker = (chunkID: ChunkID, contentID: ContentID) => ChunkContent;
 
 interface ChunkContent {
     load: (ws: WSSendFn) => void;
     unload: (ws: WSSendFn, cy: CY) => void;
     refresh: (ws: WSSendFn) => void;
-    handleMsg: (buf: Buffer, cy: CY) => void
+    handleMsg: (buf: DataView, cy: CY) => void
 }
 
 type TimestampMS = number;
@@ -60,6 +60,9 @@ export class Graph {
 
     private minChunk: ChunkID;
     private maxChunk: ChunkID;
+
+    private _sendWS: undefined | ((msg: ArrayBufferView) => void);
+    private _closeWS: undefined | WSCloser;
 
     private chunks: Map<ChunkID, ChunkData>;
 
@@ -119,24 +122,36 @@ export class Graph {
         this.cy.pan({x: x, y: y})
     }
 
-    setupWS(): WSCloser {
+    close = () => {
+        if (this._closeWS) {
+            this._closeWS();
+        }
+    };
+
+    setupWS = () => {
         const rws = new ReconnectingWebSocket('ws://localhost:4000/ws', [], {debug: true});
         rws.binaryType = 'arraybuffer';
         rws.addEventListener('close', () => this.onWsStatusChange(false));
         rws.addEventListener('open', () => this.onWsStatusChange(true));
         rws.addEventListener('message', this.onMessageEvent);
-        return () => {
+        this._sendWS = rws.send.bind(rws);
+        this._closeWS = () => {
+            this._sendWS = undefined;
             rws.close();
         };
     };
 
-    sendWSMsg = (id: ContentID) => ((buf: Buffer) => {
-        // TODO: ws
-        console.log("send msg: ", id, buf);
+    sendWSMsg = ((msg: DataView) => {
+        if(this._sendWS) {
+            console.log("sending msg: ", msg);
+            this._sendWS(msg);
+        } else {
+            console.log("not connected to WS, could not send msg: ", msg);
+        }
     });
 
     loadChunk(chunkID: ChunkID) {
-        console.log("loading chunk", chunkID);
+        // console.log("loading chunk", chunkID);
         // if the chunk already exists:
         const c = this.chunks.get(chunkID);
         if(c !== undefined) {
@@ -148,26 +163,26 @@ export class Graph {
                 // refresh data
                 for (let ct of this.contentTypes) {
                     const content = c.contents[ct.ID];
-                    content.refresh(this.sendWSMsg(ct.ID));
+                    content.refresh(this.sendWSMsg);
                 }
             }
         } else {
-            console.log("loading new chunk", chunkID);
+            // console.log("loading new chunk", chunkID);
             const contents: Record<ContentID, ChunkContent> = {};
             for (let ct of this.contentTypes) {
-                contents[ct.ID] = ct.ContentType.initContent(chunkID);
+                contents[ct.ID] = ct.ContentType.initContent(chunkID, ct.ID);
             }
             const chunk = {
                 lastRequestTimestamp: now(),
                 contents: contents,
             };
-            console.log("created new chunk", chunkID, chunk);
+            // console.log("created new chunk", chunkID, chunk);
             // start loading new chunk
             this.chunks.set(chunkID, chunk);
             // load data
             for (let ct of this.contentTypes) {
                 const content = chunk.contents[ct.ID];
-                content.load(this.sendWSMsg(ct.ID));
+                content.load(this.sendWSMsg);
             }
             this.cy.batch(() => {
                 if (this.cy.$id(`chunk_bound_${chunkID}`).empty()){
@@ -208,7 +223,7 @@ export class Graph {
                 // unload all contents of the chunk
                 for (let ct of this.contentTypes) {
                     const content = c.contents[ct.ID];
-                    content.unload(this.sendWSMsg(ct.ID), this.cy);
+                    content.unload(this.sendWSMsg, this.cy);
                 }
             });
         }
@@ -217,8 +232,8 @@ export class Graph {
 
     loadView() {
         const extent = this.cy.extent();
-        console.log("viewport event, extent:", extent);
-        console.log("current zoom: ", this.cy.zoom());
+        // console.log("viewport event, extent:", extent);
+        // console.log("current zoom: ", this.cy.zoom());
 
         const minChunk = Math.floor(extent.x1 / chunkWidth);
         const maxChunk = Math.ceil(extent.x2 / chunkWidth);
@@ -231,13 +246,13 @@ export class Graph {
 
         const unloadChunks = Math.round(chunks * unloadRatio);
 
-        console.log({minChunk, maxChunk, chunks, unloadChunks});
+        // console.log({minChunk, maxChunk, chunks, unloadChunks});
 
         // bounds are inclusive (i.e. not unloaded)
         const minUnloadBound = Math.max(minChunk - unloadChunks, 0);
         const maxUnloadBound = maxChunk + unloadChunks;
 
-        console.log({minUnloadBound, maxUnloadBound});
+        // console.log({minUnloadBound, maxUnloadBound});
 
         // unload on min side, only out of margin bounds.
         for (let i = minUnloadBound - 1; i >= 0; i--) {
@@ -251,7 +266,7 @@ export class Graph {
         // Start loading from center of the view. Expand outwards.
         let left = Math.floor((minUnloadBound + maxUnloadBound) / 2);
         let right = left + 1;
-        console.log({left, right});
+        // console.log({left, right});
         while (true) {
             if (left >= minUnloadBound) {
                 this.loadChunk(left);
@@ -274,7 +289,7 @@ export class Graph {
             }
             this.unloadChunk(i);
         }
-        console.log("finished viewport update");
+        // console.log("finished viewport update");
     }
 
     setupCY() {
@@ -284,14 +299,17 @@ export class Graph {
         });
     }
 
-    onMessageEvent(ev: MessageEvent) {
-        const msg: Buffer = ev.data;
+    onMessageEvent = (ev: MessageEvent) => {
+        console.log("msg event: ", ev);
+
+        const msg: ArrayBuffer = ev.data;
         if (msg.byteLength < 1) {
             console.log("msg too short");
             return;
         }
 
-        const msgType = msg[0];
+        const data = new DataView(msg);
+        const msgType = data.getUint8(0);
         console.log(`received msg of type ${msgType}`);
 
         switch (msgType) {
@@ -301,13 +319,13 @@ export class Graph {
                     console.log("expected content identifier byte and chunk ID in msg");
                     return;
                 }
-                const contentID: ContentID = msg[1];
-                const ct = this.contentTypes[contentID];
+                const contentID: ContentID = data.getUint8(1);
+                const ct = this.contentTypes.find(ct => ct.ID === contentID);
                 if (!ct) {
                     console.log("unexpected content identifier: ", contentID);
                     return;
                 }
-                const chunkID = (new Uint32Array(msg, 2, 1))[0];
+                const chunkID = data.getUint32(2, true);
                 const chunk = this.chunks.get(chunkID);
                 if(!chunk) {
                     console.log(`expected to have chunk ${chunkID} available for content type ${contentID}`);
@@ -319,7 +337,7 @@ export class Graph {
                     return;
                 }
                 // pass a view of the message buffer, with the topic cut off.
-                chunkContent.handleMsg(msg.subarray(2), this.cy);
+                chunkContent.handleMsg(new DataView(msg, 2), this.cy);
                 break;
             case 2:
                 // TODO update status
@@ -328,5 +346,6 @@ export class Graph {
                 // TODO
                 break;
         }
-    }
+    };
+
 }

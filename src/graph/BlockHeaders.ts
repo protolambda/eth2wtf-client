@@ -1,4 +1,4 @@
-import {ChunkID, chunkWidth, CY, pixelsPerSecond, Point, WSSendFn} from "./Constants";
+import {ChunkID, chunkWidth, ContentID, CY, pixelsPerSecond, Point, WSSendFn} from "./Constants";
 import {NodeSingular} from "cytoscape";
 
 const secondsPerSlot = 6;
@@ -14,27 +14,34 @@ function getRandomArbitrary(min: number, max: number) {
 
 export class BlockHeadersChunkContent {
 
-    static id: number = 1;
-
-    private id: ChunkID;
+    private chunkID: ChunkID;
+    private contentID: ContentID;
 
     private headerChunkIndices: Array<number>;
 
-    constructor(id: ChunkID) {
-        this.id = id;
+    constructor(chunkID: ChunkID, contentID: ContentID) {
+        this.chunkID = chunkID;
+        this.contentID = contentID;
         this.headerChunkIndices = new Array<number>();
     }
 
-    load(ws: WSSendFn){
-        console.log("loading headers for chunk ", this.id);
+    load(sendWS: WSSendFn){
+        console.log("loading headers for chunk ", this.chunkID);
+        const buf = new ArrayBuffer(1 + 1 + 4);
+        const data = new DataView(buf);
+        data.setUint8(0, 1);
+        data.setUint8(1, this.contentID);
+        data.setUint32(2, this.chunkID, true);
+        // TODO: encode known header indices
+        sendWS(data)
     }
 
     unload(ws: WSSendFn, cy: CY){
-        console.log("unloading headers for chunk ", this.id);
+        console.log("unloading headers for chunk ", this.chunkID);
     }
 
     refresh(ws: WSSendFn){
-        console.log("refreshing headers for chunk ", this.id);
+        console.log("refreshing headers for chunk ", this.chunkID);
     }
 
     mock = (cy: CY) => {
@@ -75,8 +82,9 @@ export class BlockHeadersChunkContent {
         });
     };
 
-    handleMsg(buf: Buffer, cy: CY){
+    handleMsg(msg: DataView, cy: CY){
         // TODO read data with SSZ
+        console.log("receiver msg: ", msg);
 
         // // TODO add nodes, connect with existing nodes
         // this.cy.batch(() => {
@@ -99,5 +107,5 @@ export class BlockHeadersChunkContent {
 
 export const BlockHeadersContentType = {
     transform: (node: NodeSingular, pos: Point) => ({x: node.data('slot') * pixelsPerSlot, y: pos.y}),
-    initContent: (id: ChunkID) => new BlockHeadersChunkContent(id)
+    initContent: (chunkID: ChunkID, contentID: ContentID) => new BlockHeadersChunkContent(chunkID, contentID)
 };

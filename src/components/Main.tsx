@@ -68,16 +68,25 @@ export class Main extends Component<MainProps, MainState> {
 
     private graph: Graph | undefined;
 
-    onStatusWS(open: boolean) {
+    onStatusWS = (open: boolean) => {
         this.setState({
             wsOpen: open,
         })
     };
 
     makeCyRef = (cy: CY) => {
+        if (this.cy === cy) {
+            console.log("already have CY");
+            return;
+        }
+        if (this.graph) {
+            // close old graph
+            this.graph.close();
+        }
         this.cy = cy;
         this.graph = new Graph(cy, this.onStatusWS);
         this.graph.setupCY();
+        this.graph.setupWS();
         // TODO: reload data from WS on CY reset.
         console.log("reset CY instance");
     };

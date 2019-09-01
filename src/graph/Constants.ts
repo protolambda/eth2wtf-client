@@ -5,7 +5,7 @@ export type ContentID = number;
 
 export type ChunkID = number;
 
-export type WSSendFn = (msg: Buffer) => void;
+export type WSSendFn = (msg: DataView) => void;
 export type CY = cytoscape.Core;
 
 export type Point = {
