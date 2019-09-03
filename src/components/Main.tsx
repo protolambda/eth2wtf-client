@@ -93,7 +93,7 @@ export class Main extends Component<MainProps, MainState> {
 
     layoutDag = () => {
         if(this.graph) {
-            this.graph.layoutDag(this.state.layoutOpts);
+            this.graph.layoutDag();
         }
     };
 

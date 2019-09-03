@@ -22,7 +22,7 @@ interface ChunkContent {
     load: (ws: WSSendFn) => void;
     unload: (ws: WSSendFn, cy: CY) => void;
     refresh: (ws: WSSendFn) => void;
-    handleMsg: (buf: DataView, cy: CY) => void
+    handleMsg: (buf: DataView, cy: CY, layout: () => void) => void
 }
 
 type TimestampMS = number;
@@ -68,6 +68,8 @@ export class Graph {
 
     private contentTypes: Array<GraphContentTypeDef>;
 
+    public layoutDag: () => void;
+
     constructor(cy: CY, onWsStatusChange: WSStatusHandler) {
         this.cy = cy;
         this.onWsStatusChange = onWsStatusChange;
@@ -79,40 +81,16 @@ export class Graph {
             // TODO blocks, eth1, attestations, etc.
             {ID: 1, ContentType: BlockHeadersContentType}
         ];
-    }
-
-    layoutDag(opts: LayoutOptionsData) {
-        const options = {
-            animate: true,
-            animationDuration: 2000,
-            name: 'dagre',
-            ranker: 'network-simplex',
-            nodeSep: opts.nodeSep,
-            edgeSep: opts.edgeSep,
-            rankSep: 100, // TODO heuristic?
-            // @ts-ignore
-            rankDir: 'LR', // TODO: maybe rotate on mobile layout?
-            // TODO: maybe check the type of the node. I.e. only position eth2 blocks to align to slots?
-            // @ts-ignore
-            transform: ( node: NodeSingular, pos: Point): Point => {
-                const contentType: GraphContentType | undefined = node.data('content_type');
-                if(contentType !== undefined) {
-                    return contentType.transform(node, pos);
-                } else {
-                    // keep the node position as-is.
-                    return node.position();
-                }
-            },
-        };
 
         // TODO test compact view (no transform, plain un-ranked dag)
         // if (!opts.compact) {
         //     // @ts-ignore
         //     options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
         // }
-        const layout = this.cy.layout(options);
-        layout.run();
-    };
+        this.layoutDag = () => {
+            console.log("cannot run layout, uninitialized");
+        }
+    }
 
     fit() {
         this.cy.fit();
@@ -293,6 +271,35 @@ export class Graph {
     }
 
     setupCY() {
+
+        const options = {
+            animate: false,
+            animationDuration: 0,
+            name: 'dagre',
+            fit: false,
+            ranker: 'network-simplex',
+            nodeSep: 10,
+            rankSep: 10, // TODO heuristic?
+            // @ts-ignore
+            rankDir: 'RL', // TODO: maybe rotate on mobile layout?
+            // TODO: maybe check the type of the node. I.e. only position eth2 blocks to align to slots?
+            // @ts-ignore
+            transform: ( node: NodeSingular, pos: Point): Point => {
+                console.log("transforming", node.data('slot'), node.position(), pos);
+                const contentType: GraphContentType | undefined = node.data('content_type');
+                if(contentType !== undefined) {
+                    return contentType.transform(node, pos);
+                } else {
+                    // keep the node position as-is.
+                    return node.position();
+                }
+            },
+        };
+        this.layoutDag = () => {
+            console.log("running layout!");
+            const layout = this.cy.layout(options);
+            layout.run();
+        };
         this.loadView();
         this.cy.on('viewport', (event: EventObject) => {
             this.loadView();
@@ -337,7 +344,7 @@ export class Graph {
                     return;
                 }
                 // pass a view of the message buffer, with the topic cut off.
-                chunkContent.handleMsg(new DataView(msg, 2), this.cy);
+                chunkContent.handleMsg(new DataView(msg, 6), this.cy, this.layoutDag);
                 break;
             case 2:
                 // TODO update status

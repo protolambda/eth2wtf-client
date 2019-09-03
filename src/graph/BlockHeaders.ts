@@ -12,8 +12,8 @@ const slotsPerChunk = chunkWidth / pixelsPerSlot;
 
 const HeadersRequestType: AnyContainerType = {
     fields: [
-        ['highestKnown', "uint32"],
-        ['wanted', {elementType: "uint32", maxLength: 1024}]
+        ['highestKnown', "number32"],
+        ['wanted', {elementType: "number32", maxLength: 1024}]
     ],
 };
 
@@ -37,7 +37,7 @@ interface HeaderData {
 
 const HeadersResponseType: AnyContainerType = {
     fields: [
-        ['indices', {elementType: "uint32", maxLength: 1024}],
+        ['indices', {elementType: "number32", maxLength: 1024}],
         ['headers', {elementType: HeaderDataType, maxLength: 1024}],
     ]
 };
@@ -81,7 +81,7 @@ export class BlockHeadersChunkContent {
 
         const req: HeadersRequest = {
             highestKnown: best,
-            wanted: this.headerChunkIndices,
+            wanted: wanted,
         };
 
         const reqBuf: Buffer = serialize(req, HeadersRequestType);
@@ -107,9 +107,10 @@ export class BlockHeadersChunkContent {
         // TODO: request new data
     }
 
-    handleMsg(msg: DataView, cy: CY){
-        // TODO read data with SSZ
-        console.log("receiver msg: ", msg);
+    handleMsg(msg: DataView, cy: CY, layout: () => void){
+        console.log("received msg: ", msg);
+
+        console.log({msg});
 
         const input = Buffer.from(msg.buffer, msg.byteOffset, msg.byteLength);
         const res: HeadersResponse = deserialize(input, HeadersResponseType);
@@ -131,7 +132,6 @@ export class BlockHeadersChunkContent {
         this.headerChunkIndices.sort();
 
         // add new headers to the graph
-
         cy.batch(() => {
             for (let h of newHeaders) {
                 const nodeRoot = h.root.toString('hex');
@@ -143,7 +143,8 @@ export class BlockHeadersChunkContent {
                         group: 'nodes',
                         data: {
                             id: nodeID,
-                            slot: h.header.slot
+                            slot: h.header.slot,
+                            content_type: BlockHeadersContentType,
                         }
                     });
                 } else {
@@ -162,6 +163,7 @@ export class BlockHeadersChunkContent {
                         data: {
                             id: parentID,
                             placeholder: true,
+                            content_type: BlockHeadersContentType,
                         }
                     });
                 }
@@ -174,17 +176,25 @@ export class BlockHeadersChunkContent {
                         group: 'edges',
                         data: {
                             id: edgeID,
-                            source: nodeRoot,
-                            target: parentRoot
+                            target: parentID,
+                            source: nodeID
                         }
                     })
                 }
             }
+            layout();
         });
     }
 }
 
 export const BlockHeadersContentType = {
-    transform: (node: NodeSingular, pos: Point) => ({x: node.data('slot') * pixelsPerSlot, y: pos.y}),
+    transform: (node: NodeSingular, pos: Point) => {
+        const slot: number | undefined = node.data('slot');
+        if (slot !== undefined) {
+            return ({x: slot * pixelsPerSlot, y: pos.y}) // TODO: pos.y?
+        } else {
+            return pos;
+        }
+    },
     initContent: (chunkID: ChunkID, contentID: ContentID) => new BlockHeadersChunkContent(chunkID, contentID)
 };
