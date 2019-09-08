@@ -1,4 +1,4 @@
-import {ChunkID, chunkWidth, ContentID, CY, pixelsPerSecond, Point, WSSendFn} from "./Constants";
+import {ChunkID, ContentID, CY, pixelsPerSecond, Point, WSSendFn} from "./Constants";
 import {NodeSingular} from "cytoscape";
 import {BeaconBlockHeader, Hash} from "@chainsafe/eth2.0-types";
 import {types} from "@chainsafe/eth2.0-ssz-types/lib/presets/mainnet";
@@ -7,8 +7,6 @@ import {AnyContainerType, deserialize, serialize} from "@chainsafe/ssz";
 const secondsPerSlot = 6;
 
 const pixelsPerSlot = secondsPerSlot * pixelsPerSecond;
-
-const slotsPerChunk = chunkWidth / pixelsPerSlot;
 
 const HeadersRequestType: AnyContainerType = {
     fields: [
@@ -162,6 +160,7 @@ export class BlockHeadersChunkContent {
                         group: 'nodes',
                         data: {
                             id: parentID,
+                            slot: h.header.slot - 1,
                             placeholder: true,
                             content_type: BlockHeadersContentType,
                         }

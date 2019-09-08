@@ -1,16 +1,10 @@
 import React, {Component} from 'react';
 // @ts-ignore
 import CytoscapeComponent from 'react-cytoscapejs';
-// @ts-ignore
-import dagre from 'cytoscape-dagre';
 import cytoscape from "cytoscape";
 import {Button, Paper, Typography} from "@material-ui/core";
 import "./Main.css";
-import {defaultLayoutOpts, LayoutOptions} from "./LayoutOptions";
-import {Graph, LayoutOptionsData} from "../graph/Graph";
-import {chunkWidth} from "../graph/Constants";
-
-cytoscape.use(dagre);
+import {Graph} from "../graph/Graph";
 
 const cytoStyles: Array<cytoscape.Stylesheet> = [
     {
@@ -32,9 +26,9 @@ const cytoStyles: Array<cytoscape.Stylesheet> = [
         }
     },
     {
-        selector: 'node[chunk_box]',
+        selector: 'node[chunk_id]',
         style: {
-            'label': 'data(chunk_box)',
+            'label': 'data(chunk_id)',
             'color': '#fff',
             'background-color': '#000',
             'shape': 'rectangle',
@@ -47,7 +41,6 @@ const cytoStyles: Array<cytoscape.Stylesheet> = [
 type MainState = {
     loaded: boolean,
     wsOpen: boolean,
-    layoutOpts: LayoutOptionsData
 }
 
 interface MainProps {
@@ -61,7 +54,6 @@ export class Main extends Component<MainProps, MainState> {
     state: Readonly<MainState> = {
         loaded: false,
         wsOpen: false,
-        layoutOpts: defaultLayoutOpts,
     };
 
     private cy: CY | undefined;
@@ -109,10 +101,6 @@ export class Main extends Component<MainProps, MainState> {
         }
     };
 
-    onLayoutOptions = (data: LayoutOptionsData) => {
-        this.setState({layoutOpts: data}, this.layoutDag);
-    };
-
     render() {
         return (
             <>
@@ -128,8 +116,6 @@ export class Main extends Component<MainProps, MainState> {
                     <Button variant="contained">Mock data</Button>
                 </Paper>
                 <Paper className="overlay layoutOverlay">
-                    <LayoutOptions onOptions={this.onLayoutOptions}/>
-
                     <Button variant="contained" onClick={this.layoutDag}>Layout DAG</Button>
                     <Button variant="contained" onClick={this.fitDag}>Fit DAG</Button>
                     <Button variant="contained" onClick={this.panDag}>Pan DAG</Button>

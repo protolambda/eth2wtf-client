@@ -1,29 +1,21 @@
-import {EventObject, NodeSingular} from "cytoscape";
+import CytoScape, {EventObject, NodeSingular} from "cytoscape";
 import ReconnectingWebSocket from "reconnecting-websocket";
-import {ChunkID, chunkWidth, ContentID, CY, Point, WSSendFn} from "./Constants";
-import {BlockHeadersContentType} from "./BlockHeaders";
+import {
+    ChunkContent,
+    ChunkID,
+    chunkWidth,
+    ContentID,
+    CY,
+    GraphContentTypeDef, Point,
+} from "./Constants";
+import CustomLayout from "./CustomLayout";
+import {BlockHeadersChunkContent, BlockHeadersContentType} from "./BlockHeaders";
+
+CytoScape.use(CustomLayout);
 
 type WSStatusHandler = (status: boolean) => void;
 
 type WSCloser = () => void;
-
-export type LayoutOptionsData = {
-    // ignore empty slots or not
-    compact: boolean,
-    // the separation between adjacent nodes with the same slot
-    nodeSep: number,
-    // the separation between adjacent edges with the same slot
-    edgeSep: number
-}
-
-type ChunkContentMaker = (chunkID: ChunkID, contentID: ContentID) => ChunkContent;
-
-interface ChunkContent {
-    load: (ws: WSSendFn) => void;
-    unload: (ws: WSSendFn, cy: CY) => void;
-    refresh: (ws: WSSendFn) => void;
-    handleMsg: (buf: DataView, cy: CY, layout: () => void) => void
-}
 
 type TimestampMS = number;
 
@@ -32,21 +24,28 @@ type ChunkData = {
     contents: Record<ContentID, ChunkContent>
 }
 
-const chunkUpdateDelay: TimestampMS = 10000;
+const chunkUpdateDelay: TimestampMS = 100;
 
-type GraphContentType = {
-    transform: (node: NodeSingular, pos: Point) => Point;
-    initContent: ChunkContentMaker;
-}
-
-type GraphContentTypeDef = {
-    ID: ContentID;
-    ContentType: GraphContentType;
-}
 
 function now(): TimestampMS {
     return Date.now();
 }
+
+
+export const ChunkBoundaryContentType = {
+    transform: (node: NodeSingular, pos: Point) => {
+        const chunk_id: number | undefined = node.data('chunk_id');
+        if (chunk_id !== undefined) {
+            return ({
+                x: chunk_id * chunkWidth,
+                y: 0,
+            }) // TODO: pos.y?
+        } else {
+            return pos;
+        }
+    },
+    initContent: (chunkID: ChunkID, contentID: ContentID) => new BlockHeadersChunkContent(chunkID, contentID)
+};
 
 // Viewport width * unloadRatio == width of margin around viewport that is not unloaded.
 // Rounded up, dealt with in chunks.
@@ -162,34 +161,6 @@ export class Graph {
                 const content = chunk.contents[ct.ID];
                 content.load(this.sendWSMsg);
             }
-            this.cy.batch(() => {
-                if (this.cy.$id(`chunk_bound_${chunkID}`).empty()){
-                    this.cy.add({
-                        group: 'nodes',
-                        data: {
-                            chunk_box: chunkID,
-                            id: `chunk_bound_${chunkID}`,
-                        },
-                        position: {
-                            x: chunkID * chunkWidth,
-                            y: 0,
-                        }
-                    });
-                }
-                if (this.cy.$id(`chunk_bound_${chunkID+1}`).empty()){
-                    this.cy.add({
-                        group: 'nodes',
-                        data: {
-                            chunk_box: chunkID,
-                            id: `chunk_bound_${chunkID+1}`,
-                        },
-                        position: {
-                            x: (chunkID + 1) * chunkWidth,
-                            y: 0,
-                        }
-                    });
-                }
-            });
         }
     }
 
@@ -210,7 +181,7 @@ export class Graph {
 
     loadView() {
         const extent = this.cy.extent();
-        // console.log("viewport event, extent:", extent);
+        console.log("viewport event, extent:", extent);
         // console.log("current zoom: ", this.cy.zoom());
 
         const minChunk = Math.floor(extent.x1 / chunkWidth);
@@ -271,30 +242,13 @@ export class Graph {
     }
 
     setupCY() {
-
         const options = {
             animate: false,
             animationDuration: 0,
-            name: 'dagre',
+            name: 'custom_layout',
             fit: false,
-            ranker: 'network-simplex',
-            nodeSep: 10,
-            rankSep: 10, // TODO heuristic?
-            // @ts-ignore
-            rankDir: 'RL', // TODO: maybe rotate on mobile layout?
-            // TODO: maybe check the type of the node. I.e. only position eth2 blocks to align to slots?
-            // @ts-ignore
-            transform: ( node: NodeSingular, pos: Point): Point => {
-                console.log("transforming", node.data('slot'), node.position(), pos);
-                const contentType: GraphContentType | undefined = node.data('content_type');
-                if(contentType !== undefined) {
-                    return contentType.transform(node, pos);
-                } else {
-                    // keep the node position as-is.
-                    return node.position();
-                }
-            },
         };
+
         this.layoutDag = () => {
             console.log("running layout!");
             const layout = this.cy.layout(options);
