@@ -26,14 +26,14 @@ const cytoStyles: Array<cytoscape.Stylesheet> = [
         }
     },
     {
-        selector: 'node[chunk_id]',
+        selector: 'node[placeholder]',
         style: {
             'label': 'data(chunk_id)',
-            'color': '#fff',
+            'color': '#c00',
             'background-color': '#000',
             'shape': 'rectangle',
-            'height': 1000,
-            'width': 20,
+            'height': 10,
+            'width': 10,
         }
     }
 ];
@@ -85,7 +85,7 @@ export class Main extends Component<MainProps, MainState> {
 
     layoutDag = () => {
         if(this.graph) {
-            this.graph.layoutDag();
+            this.graph.layoutDag(0, this.graph.eventIndex);
         }
     };
 

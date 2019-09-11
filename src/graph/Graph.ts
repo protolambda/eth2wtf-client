@@ -1,15 +1,12 @@
-import CytoScape, {EventObject, NodeSingular} from "cytoscape";
+import CytoScape, {Layouts} from "cytoscape";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import {
-    ChunkContent,
-    ChunkID,
-    chunkWidth,
-    ContentID,
+    EventTypeID,
     CY,
-    GraphContentTypeDef, Point,
+    GraphEventType, EventIndex,
 } from "./Constants";
 import CustomLayout from "./CustomLayout";
-import {BlockHeadersChunkContent, BlockHeadersContentType} from "./BlockHeaders";
+import {BlockHeadersContentType} from "./BlockHeaders";
 
 CytoScape.use(CustomLayout);
 
@@ -17,39 +14,9 @@ type WSStatusHandler = (status: boolean) => void;
 
 type WSCloser = () => void;
 
-type TimestampMS = number;
-
-type ChunkData = {
-    lastRequestTimestamp: TimestampMS;
-    contents: Record<ContentID, ChunkContent>
-}
-
-const chunkUpdateDelay: TimestampMS = 100;
-
-
-function now(): TimestampMS {
-    return Date.now();
-}
-
-
-export const ChunkBoundaryContentType = {
-    transform: (node: NodeSingular, pos: Point) => {
-        const chunk_id: number | undefined = node.data('chunk_id');
-        if (chunk_id !== undefined) {
-            return ({
-                x: chunk_id * chunkWidth,
-                y: 0,
-            }) // TODO: pos.y?
-        } else {
-            return pos;
-        }
-    },
-    initContent: (chunkID: ChunkID, contentID: ContentID) => new BlockHeadersChunkContent(chunkID, contentID)
+const eventTypes: Record<number, GraphEventType> = {
+    1: BlockHeadersContentType,
 };
-
-// Viewport width * unloadRatio == width of margin around viewport that is not unloaded.
-// Rounded up, dealt with in chunks.
-const unloadRatio = 1.3;
 
 export class Graph {
 
@@ -57,39 +24,38 @@ export class Graph {
 
     private cy: CY;
 
-    private minChunk: ChunkID;
-    private maxChunk: ChunkID;
-
     private _sendWS: undefined | ((msg: ArrayBufferView) => void);
     private _closeWS: undefined | WSCloser;
 
-    private chunks: Map<ChunkID, ChunkData>;
+    public layoutDag: (fromIndex: EventIndex, toIndex: EventIndex) => void;
 
-    private contentTypes: Array<GraphContentTypeDef>;
+    public eventIndex = 0;
 
-    public layoutDag: () => void;
+    private layoutState: Layouts | undefined;
 
     constructor(cy: CY, onWsStatusChange: WSStatusHandler) {
         this.cy = cy;
         this.onWsStatusChange = onWsStatusChange;
-        this.chunks = new Map();
-        // TODO init with latest chunk? (viewport and prefer. slot -> bounds)
-        this.minChunk = 0;
-        this.maxChunk = 0;
-        this.contentTypes = [
-            // TODO blocks, eth1, attestations, etc.
-            {ID: 1, ContentType: BlockHeadersContentType}
-        ];
 
         // TODO test compact view (no transform, plain un-ranked dag)
         // if (!opts.compact) {
         //     // @ts-ignore
         //     options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
         // }
-        this.layoutDag = () => {
+        this.layoutDag = (fromIndex: EventIndex, toIndex: EventIndex) => {
             console.log("cannot run layout, uninitialized");
-        }
+        };
+
+        setInterval(this.pushEventIndex, 1000)
     }
+
+    pushEventIndex = () => {
+        const buf = new ArrayBuffer(5);
+        const dat = new DataView(buf);
+        dat.setUint8(0, 1);
+        dat.setUint32(1, this.eventIndex, true);
+        this.sendWSMsg(dat);
+    };
 
     fit() {
         this.cy.fit();
@@ -127,142 +93,26 @@ export class Graph {
         }
     });
 
-    loadChunk(chunkID: ChunkID) {
-        // console.log("loading chunk", chunkID);
-        // if the chunk already exists:
-        const c = this.chunks.get(chunkID);
-        if(c !== undefined) {
-            // only update if not requested again within X time.
-            const t = now();
-            if (c.lastRequestTimestamp + chunkUpdateDelay < t) {
-                console.log("refreshing older existing chunk", chunkID);
-                c.lastRequestTimestamp = t;
-                // refresh data
-                for (let ct of this.contentTypes) {
-                    const content = c.contents[ct.ID];
-                    content.refresh(this.sendWSMsg);
-                }
-            }
-        } else {
-            // console.log("loading new chunk", chunkID);
-            const contents: Record<ContentID, ChunkContent> = {};
-            for (let ct of this.contentTypes) {
-                contents[ct.ID] = ct.ContentType.initContent(chunkID, ct.ID);
-            }
-            const chunk = {
-                lastRequestTimestamp: now(),
-                contents: contents,
-            };
-            // console.log("created new chunk", chunkID, chunk);
-            // start loading new chunk
-            this.chunks.set(chunkID, chunk);
-            // load data
-            for (let ct of this.contentTypes) {
-                const content = chunk.contents[ct.ID];
-                content.load(this.sendWSMsg);
-            }
-        }
-    }
-
-    unloadChunk(chunkID: ChunkID) {
-        console.log("unloading chunk", chunkID);
-        const c = this.chunks.get(chunkID);
-        if(c) {
-            this.cy.batch(() => {
-                // unload all contents of the chunk
-                for (let ct of this.contentTypes) {
-                    const content = c.contents[ct.ID];
-                    content.unload(this.sendWSMsg, this.cy);
-                }
-            });
-        }
-        this.chunks.delete(chunkID);
-    }
-
-    loadView() {
-        const extent = this.cy.extent();
-        console.log("viewport event, extent:", extent);
-        // console.log("current zoom: ", this.cy.zoom());
-
-        const minChunk = Math.floor(extent.x1 / chunkWidth);
-        const maxChunk = Math.ceil(extent.x2 / chunkWidth);
-        const chunks = maxChunk - minChunk;
-
-        if (chunks > 10) {
-            console.log("too many chunks! aborting");
-            return
-        }
-
-        const unloadChunks = Math.round(chunks * unloadRatio);
-
-        // console.log({minChunk, maxChunk, chunks, unloadChunks});
-
-        // bounds are inclusive (i.e. not unloaded)
-        const minUnloadBound = Math.max(minChunk - unloadChunks, 0);
-        const maxUnloadBound = maxChunk + unloadChunks;
-
-        // console.log({minUnloadBound, maxUnloadBound});
-
-        // unload on min side, only out of margin bounds.
-        for (let i = minUnloadBound - 1; i >= 0; i--) {
-            if (!this.chunks.has(i)) {
-                // stop when the chunk does not exist
-                break;
-            }
-            this.unloadChunk(i);
-        }
-
-        // Start loading from center of the view. Expand outwards.
-        let left = Math.floor((minUnloadBound + maxUnloadBound) / 2);
-        let right = left + 1;
-        // console.log({left, right});
-        while (true) {
-            if (left >= minUnloadBound) {
-                this.loadChunk(left);
-                left--;
-            }
-            if (right <= maxUnloadBound) {
-                this.loadChunk(right);
-                right++;
-            }
-            if (left < minUnloadBound && right > maxUnloadBound) {
-                break;
-            }
-        }
-
-        // unload on max side, only out of margin bounds.
-        for (let i = maxUnloadBound + 1; ; i++) {
-            if (!this.chunks.has(i)) {
-                // stop when the chunk does not exist
-                break;
-            }
-            this.unloadChunk(i);
-        }
-        // console.log("finished viewport update");
-    }
-
     setupCY() {
         const options = {
-            animate: false,
-            animationDuration: 0,
+            animate: true,
+            animationDuration: 300,
             name: 'custom_layout',
             fit: false,
         };
-
-        this.layoutDag = () => {
+        this.layoutDag = (fromIndex: EventIndex, toIndex: EventIndex) => {
             console.log("running layout!");
-            const layout = this.cy.layout(options);
+            const layout = this.cy.filter(function(element){
+                const evIndex = element.data('eventIndex');
+                return evIndex >= fromIndex && evIndex < toIndex
+            }).layout(options);
             layout.run();
         };
-        this.loadView();
-        this.cy.on('viewport', (event: EventObject) => {
-            this.loadView();
-        });
+        this.layoutState = this.cy.layout(options);
+        this.pushEventIndex()
     }
 
     onMessageEvent = (ev: MessageEvent) => {
-        console.log("msg event: ", ev);
-
         const msg: ArrayBuffer = ev.data;
         if (msg.byteLength < 1) {
             console.log("msg too short");
@@ -271,42 +121,54 @@ export class Graph {
 
         const data = new DataView(msg);
         const msgType = data.getUint8(0);
-        console.log(`received msg of type ${msgType}`);
 
         switch (msgType) {
-            // 1: messages that are content-specific updates.
+            // 1: event updates
             case 1:
-                if (msg.byteLength < 6) {
-                    console.log("expected content identifier byte and chunk ID in msg");
+                if (msg.byteLength < 5) {
+                    console.log(msg);
+                    console.log("expected msg type and event index");
                     return;
                 }
-                const contentID: ContentID = data.getUint8(1);
-                const ct = this.contentTypes.find(ct => ct.ID === contentID);
-                if (!ct) {
-                    console.log("unexpected content identifier: ", contentID);
+                let eventIndex: number = data.getUint32(1, true);
+
+                const oldEventIndex = eventIndex;
+
+                if (eventIndex > this.eventIndex) {
+                    // TODO: buffer and process later.
+                    console.log("event index too new, ignoring data, requesting new data");
+                    this.pushEventIndex();
                     return;
                 }
-                const chunkID = data.getUint32(2, true);
-                const chunk = this.chunks.get(chunkID);
-                if(!chunk) {
-                    console.log(`expected to have chunk ${chunkID} available for content type ${contentID}`);
-                    return;
-                }
-                const chunkContent = chunk.contents[contentID];
-                if(!chunkContent) {
-                    console.log(`chunk ${chunkID} data for content type ${contentID} was not initialized properly`);
-                    return;
-                }
-                // pass a view of the message buffer, with the topic cut off.
-                chunkContent.handleMsg(new DataView(msg, 6), this.cy, this.layoutDag);
+
+                this.cy.batch(() => {
+                    let offset = 1 + 4;
+                    while(msg.byteLength > offset) {
+
+                        const eventId: EventTypeID = data.getUint8(offset);
+                        console.log("ev index: ", eventIndex, " event ID: ", eventId, "current ev index: ", this.eventIndex);
+                        offset += 1;
+                        const eventByteLen: number = data.getUint32(offset, true);
+                        console.log("ev byte len: %d", eventByteLen);
+                        offset += 4;
+                        eventTypes[eventId].processEvent(
+                            new DataView(msg, offset, eventByteLen), eventIndex, this.cy);
+
+                        offset += eventByteLen;
+                        eventIndex += 1;
+                    }
+                    this.eventIndex = Math.max(eventIndex, this.eventIndex);
+                    this.pushEventIndex();
+                    // Layout the newly received events, along with latest 300 to connect them in a pretty way.
+                    this.layoutDag(Math.max(oldEventIndex - 300, 0), this.eventIndex);
+                });
                 break;
             case 2:
-                // TODO update status
+                // TODO
                 break;
             default:
-                // TODO
+                // TODO more response types
                 break;
         }
     };
-
 }

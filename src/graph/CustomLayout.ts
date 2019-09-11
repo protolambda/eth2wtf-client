@@ -1,6 +1,6 @@
 import dagre from "dagre";
 import {Core, CytoscapeOptions, EdgeSingular, NodeSingular} from "cytoscape";
-import {GraphContentType, pixelsPerSecond} from "./Constants";
+import {GraphEventType, pixelsPerSecond} from "./Constants";
 
 function CustomLayoutEngine(options?: CytoscapeOptions) {
     // @ts-ignore
@@ -83,7 +83,7 @@ CustomLayoutEngine.prototype.run = function () {
 
         g.setEdge(edge.source().id(), edge.target().id(), {
             minlen: edgeLen,
-            weight: 1,
+            weight: 10000 / (edgeLen + 1),
             name: edge.id()
         }, edge.id());
     }
@@ -103,7 +103,7 @@ CustomLayoutEngine.prototype.run = function () {
     nodes.layoutPositions(layout, options, function (ele: NodeSingular) {
         let dModel = ele.scratch().dagre;
 
-        const contentType: GraphContentType | undefined = ele.data('content_type');
+        const contentType: GraphEventType | undefined = ele.data('content_type');
         if (contentType !== undefined) {
             return contentType.transform(ele, {
                 x: dModel.x * pixelsPerSecond,
