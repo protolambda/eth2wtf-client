@@ -1,6 +1,6 @@
 import dagre from "dagre";
 import {Core, CytoscapeOptions, EdgeSingular, NodeSingular} from "cytoscape";
-import {GraphEventType, pixelsPerSecond} from "./Constants";
+import {GraphEventType, pixelsPerSecond, CustomLayoutOptions} from "./Constants";
 
 function CustomLayoutEngine(options?: CytoscapeOptions) {
     // @ts-ignore
@@ -18,17 +18,19 @@ CustomLayoutEngine.prototype.run = function () {
     let cy: Core = options.cy; // cy is automatically populated for us in the constructor
     let eles = options.eles;
 
+    const customOpts: CustomLayoutOptions = options.customOpts;
+
     let g = new dagre.graphlib.Graph({
         multigraph: true,
-        compound: true
+        compound: false
     });
 
     g.setGraph({
-        nodesep: 10,
-        edgesep: 10,
-        ranksep: 10,
+        nodesep: customOpts.nodeSep,
+        edgesep: customOpts.nodeSep * 2,
+        ranksep: customOpts.slotSep,
         rankdir: 'LR',
-        ranker: 'network-simplex',
+        ranker: 'longest-path',//customOpts.pullLatest ? 'longest-path' : 'tight-tree' //'network-simplex',
     });
 
     g.setDefaultEdgeLabel(function () {
@@ -77,7 +79,7 @@ CustomLayoutEngine.prototype.run = function () {
         const tarSlot: number | undefined = tar.data('slot');
 
         let edgeLen = 1;
-        if (srcSlot !== undefined && tarSlot !== undefined) {
+        if (!customOpts.compact && srcSlot !== undefined && tarSlot !== undefined) {
             edgeLen = Math.abs(tarSlot - srcSlot)
         }
 
@@ -104,15 +106,19 @@ CustomLayoutEngine.prototype.run = function () {
         let dModel = ele.scratch().dagre;
 
         const contentType: GraphEventType | undefined = ele.data('content_type');
-        if (contentType !== undefined) {
-            return contentType.transform(ele, {
-                x: dModel.x * pixelsPerSecond,
+        if (!customOpts.pullLatest && !customOpts.compact && contentType !== undefined) {
+            const p = contentType.transform(ele, {
+                x: dModel.x,
                 y: dModel.y,
             });
+            return {
+                x: p.x,
+                y: p.y,
+            }
         } else {
             // keep the node position as-is.
             return ({
-                x: dModel.x * pixelsPerSecond,
+                x: dModel.x,
                 y: dModel.y,
             })
         }

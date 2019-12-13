@@ -3,7 +3,7 @@ import ReconnectingWebSocket from "reconnecting-websocket";
 import {
     EventTypeID,
     CY,
-    GraphEventType, EventIndex,
+    GraphEventType, EventIndex, CustomLayoutOptions, defaultCustomLayoutOpts,
 } from "./Constants";
 import CustomLayout from "./CustomLayout";
 import {BlockHeadersContentType} from "./BlockHeaders";
@@ -27,24 +27,20 @@ export class Graph {
     private _sendWS: undefined | ((msg: ArrayBufferView) => void);
     private _closeWS: undefined | WSCloser;
 
-    public layoutDag: (fromIndex: EventIndex, toIndex: EventIndex) => void;
-
     public eventIndex = 0;
 
-    private layoutState: Layouts | undefined;
+    private customOpts: CustomLayoutOptions;
 
     constructor(cy: CY, onWsStatusChange: WSStatusHandler) {
         this.cy = cy;
         this.onWsStatusChange = onWsStatusChange;
+        this.customOpts = defaultCustomLayoutOpts;
 
         // TODO test compact view (no transform, plain un-ranked dag)
         // if (!opts.compact) {
         //     // @ts-ignore
         //     options.minLen = ((edge: EdgeSingularTraversing ) => edge.target().data('slot') - edge.source().data('slot'));
         // }
-        this.layoutDag = (fromIndex: EventIndex, toIndex: EventIndex) => {
-            console.log("cannot run layout, uninitialized");
-        };
 
         setInterval(this.pushEventIndex, 1000)
     }
@@ -93,22 +89,33 @@ export class Graph {
         }
     });
 
-    setupCY() {
+    public setLayoutOptions(customOpts: CustomLayoutOptions) {
+        this.customOpts = customOpts;
+        console.log("changing layout opts to: ", customOpts);
+    }
+
+    layoutDag = (fromIndex: EventIndex, toIndex: EventIndex) => {
+        // const layout = this.cy.filter(function(element){
+        //     const evIndex = element.data('eventIndex');
+        //     return evIndex >= fromIndex && evIndex < toIndex
+        // }).layout({
+        //     options
+        // });
+        // layout.run();
+
         const options = {
             animate: true,
             animationDuration: 300,
             name: 'custom_layout',
             fit: false,
+            customOpts: this.customOpts,
         };
-        this.layoutDag = (fromIndex: EventIndex, toIndex: EventIndex) => {
-            console.log("running layout!");
-            const layout = this.cy.filter(function(element){
-                const evIndex = element.data('eventIndex');
-                return evIndex >= fromIndex && evIndex < toIndex
-            }).layout(options);
-            layout.run();
-        };
-        this.layoutState = this.cy.layout(options);
+        const layout = this.cy.layout(options);
+        layout.run();
+    };
+
+    setupCY() {
+        this.setLayoutOptions(defaultCustomLayoutOpts);
         this.pushEventIndex()
     }
 

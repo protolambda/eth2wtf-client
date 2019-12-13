@@ -5,6 +5,8 @@ import cytoscape from "cytoscape";
 import {Button, Paper, Typography} from "@material-ui/core";
 import "./Main.css";
 import {Graph} from "../graph/Graph";
+import {CustomLayoutOptions, defaultCustomLayoutOpts} from "../graph/Constants";
+import {LayoutOptions} from "./LayoutOptions";
 
 const cytoStyles: Array<cytoscape.Stylesheet> = [
     {
@@ -101,6 +103,12 @@ export class Main extends Component<MainProps, MainState> {
         }
     };
 
+    onLayoutOptions = (opts: CustomLayoutOptions) => {
+        if (this.graph) {
+            this.graph.setLayoutOptions(opts);
+        }
+    };
+
     render() {
         return (
             <>
@@ -116,6 +124,8 @@ export class Main extends Component<MainProps, MainState> {
                     <Button variant="contained">Mock data</Button>
                 </Paper>
                 <Paper className="overlay layoutOverlay">
+                    <LayoutOptions onOptions={this.onLayoutOptions}/>
+
                     <Button variant="contained" onClick={this.layoutDag}>Layout DAG</Button>
                     <Button variant="contained" onClick={this.fitDag}>Fit DAG</Button>
                     <Button variant="contained" onClick={this.panDag}>Pan DAG</Button>
